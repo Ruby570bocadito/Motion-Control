@@ -3,6 +3,7 @@ import numpy as np
 import time
 from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
+from collections import deque
 
 from mediapipe import Image, ImageFormat
 from mediapipe.tasks import python
@@ -16,7 +17,11 @@ from src.core.config import (
     MEDIAPIPE_DETECTION_CONFIDENCE,
     MEDIAPIPE_TRACKING_CONFIDENCE,
     OVERLAY_CAMERA_WIDTH,
-    OVERLAY_CAMERA_HEIGHT
+    OVERLAY_CAMERA_HEIGHT,
+    OVERLAY_FPS_ACCUMULATOR_MAX,
+    OVERLAY_FPS_UPDATE_INTERVAL,
+    OVERLAY_TIMESTAMP_INCREMENT,
+    logger,
 )
 
 
@@ -45,45 +50,31 @@ class GestureTracker:
         self.tracking_confidence = tracking_confidence
 
         base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
-        
-        try:
-            options = vision.HandLandmarkerOptions(
-                base_options=base_options,
-                num_hands=max_hands,
-                running_mode=vision.RunningMode.VIDEO,
-                min_hand_detection_confidence=detection_confidence,
-                min_hand_presence_confidence=tracking_confidence,
-                min_tracking_confidence=tracking_confidence
-            )
-            self.landmarker = HandLandmarker.create_from_options(options)
-            print("Using GPU for hand tracking")
-        except Exception as e:
-            print(f"Using CPU: {e}")
-            base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
-            options = vision.HandLandmarkerOptions(
-                base_options=base_options,
-                num_hands=max_hands,
-                running_mode=vision.RunningMode.VIDEO,
-                min_hand_detection_confidence=detection_confidence,
-                min_hand_presence_confidence=tracking_confidence,
-                min_tracking_confidence=tracking_confidence
-            )
-            self.landmarker = HandLandmarker.create_from_options(options)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            num_hands=max_hands,
+            running_mode=vision.RunningMode.VIDEO,
+            min_hand_detection_confidence=detection_confidence,
+            min_hand_presence_confidence=tracking_confidence,
+            min_tracking_confidence=tracking_confidence
+        )
+        self.landmarker = HandLandmarker.create_from_options(options)
+        logger.info("Hand landmarker initialized")
 
         self.mp_drawing = drawing_utils
         self.mp_drawing_styles = None
 
         self.frame_count = 0
         self.fps = 0
-        self.last_fps_time = 0
-        self._fps_accumulator = []
-        self._last_frame_time = time.time()
+        self.last_fps_time = 0.0
+        self._fps_accumulator: deque = deque(maxlen=OVERLAY_FPS_ACCUMULATOR_MAX)
+        self._last_frame_time = 0.0
 
     def process_frame(self, frame: np.ndarray) -> List[HandData]:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = Image(image_format=ImageFormat.SRGB, data=frame_rgb)
 
-        timestamp_ms = int(self.frame_count * 33.33)
+        timestamp_ms = int(self.frame_count * OVERLAY_TIMESTAMP_INCREMENT)
         result = self.landmarker.detect_for_video(mp_image, timestamp_ms)
 
         hands_data = []
@@ -117,8 +108,9 @@ class GestureTracker:
             middle_mcp - wrist,
             index_mcp - wrist
         )
-        if np.linalg.norm(palm_normal) > 0:
-            palm_normal = palm_normal / np.linalg.norm(palm_normal)
+        norm = np.linalg.norm(palm_normal)
+        if norm > 0:
+            palm_normal = palm_normal / norm
 
         handedness_label = handedness[0].category_name if handedness else "Unknown"
 
@@ -143,10 +135,7 @@ class GestureTracker:
         if elapsed > 0:
             self._fps_accumulator.append(1 / elapsed)
 
-        if len(self._fps_accumulator) > 15:
-            self._fps_accumulator.pop(0)
-
-        if current_time - self.last_fps_time >= 0.5:
+        if current_time - self.last_fps_time >= OVERLAY_FPS_UPDATE_INTERVAL:
             self.fps = int(np.mean(self._fps_accumulator)) if self._fps_accumulator else 0
             self.last_fps_time = current_time
 
@@ -172,7 +161,6 @@ class GestureTracker:
         landmarks = hand_data.landmarks_2d
 
         states = {}
-
         states['thumb'] = self._is_finger_extended(landmarks, 1, 2, 3, 4)
         states['index'] = self._is_finger_extended(landmarks, 5, 6, 7, 8)
         states['middle'] = self._is_finger_extended(landmarks, 9, 10, 11, 12)
@@ -189,8 +177,10 @@ class GestureTracker:
         finger_length = np.linalg.norm(tip - base)
         palm_width = np.linalg.norm(landmarks[0] - landmarks[9])
 
-        extended = finger_length > palm_width * 0.5
-        return extended
+        return bool(float(finger_length) > float(palm_width) * 0.5)
 
     def release(self):
-        self.landmarker.close()
+        try:
+            self.landmarker.close()
+        except Exception as e:
+            logger.warning(f"Error releasing landmarker: {e}")

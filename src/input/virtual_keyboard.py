@@ -1,4 +1,5 @@
 import time
+import logging
 from typing import List, Dict, Optional, Tuple, Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -7,6 +8,8 @@ import pyautogui
 
 from src.core.config import KEYBOARD_LAYOUT, KEYBOARD_KEY_SIZE, KEYBOARD_KEY_SPACING
 from src.core.gesture_recognizer import GestureType
+
+logger = logging.getLogger("gestureos.virtual_keyboard")
 
 
 class KeyboardMode(Enum):
@@ -49,8 +52,6 @@ class VirtualKeyboard:
         self._alt_active = False
 
         self._selected_key: Optional[KeyData] = None
-        self._key_press_animation_time = 0
-        self._key_press_animation_duration = 0.15
 
         self._pointer_position: Optional[Tuple[int, int]] = None
 
@@ -99,8 +100,8 @@ class VirtualKeyboard:
             ("shift", "⇧", True, "toggle_shift"),
             ("space", "espacio", True, "space"),
             ("enter", "↵", True, "enter"),
+            ("backspace", "⌫", True, "backspace"),
             ("123", "123", True, "mode_number"),
-            ("abc", "abc", True, "mode_symbol")
         ]
 
         special_row = []
@@ -226,7 +227,55 @@ class VirtualKeyboard:
         return rows
 
     def _build_navigation_layout(self) -> List[List[KeyData]]:
-        return []
+        rows = []
+        y = 0
+
+        nav_keys = [
+            ("left", "←", True, "left"),
+            ("right", "→", True, "right"),
+            ("up", "↑", True, "up"),
+            ("down", "↓", True, "down"),
+        ]
+        row_keys = []
+        x = 0
+        for key, display, _, action in nav_keys:
+            row_keys.append(KeyData(
+                key=key,
+                display=display,
+                x=x,
+                y=y,
+                width=self.key_size,
+                height=self.key_size,
+                is_special=True,
+                action=action
+            ))
+            x += self.key_size + self.spacing
+        rows.append(row_keys)
+        y += self.key_size + self.spacing
+
+        nav_row2 = [
+            ("home", "Home", True, "home"),
+            ("end", "End", True, "end"),
+            ("pageup", "PgUp", True, "pageup"),
+            ("pagedown", "PgDn", True, "pagedown"),
+        ]
+        row2_keys = []
+        x = 0
+        for key, display, _, action in nav_row2:
+            row2_keys.append(KeyData(
+                key=key,
+                display=display,
+                x=x,
+                y=y,
+                width=self.key_size,
+                height=self.key_size,
+                is_special=True,
+                action=action
+            ))
+            x += self.key_size + self.spacing
+        rows.append(row2_keys)
+
+        return rows
 
     def toggle(self):
         if self.mode == KeyboardMode.OFF:
@@ -272,7 +321,6 @@ class VirtualKeyboard:
 
     def _press_key(self, key: KeyData):
         self._selected_key = key
-        self._key_press_animation_time = time.time()
 
         if key.is_special:
             self._handle_special_key(key)
@@ -304,16 +352,16 @@ class VirtualKeyboard:
         elif key.action == "mode_alphabet":
             self.mode = KeyboardMode.ALPHABET
             self._build_keyboards()
-        elif key.action == "tab":
-            pyautogui.press("tab")
-        elif key.action == "escape":
-            pyautogui.press("escape")
+        elif key.action in ("left", "right", "up", "down", "home", "end", "pageup", "pagedown", "tab", "escape"):
+            pyautogui.press(key.action)
+        else:
+            logger.warning(f"Unknown special key action: {key.action}")
 
     def _type_character(self, char: str):
         try:
             pyautogui.write(char, _pause=False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to type '{char}': {e}")
 
     def set_gesture_callback(self, callback: Callable):
         self._gesture_callback = callback

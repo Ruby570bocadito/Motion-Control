@@ -151,15 +151,30 @@ El teclado flotante aparece en la **parte inferior** y **nunca roba el foco**:
 
 ## 🚀 Instalación
 
+### Dependencias del sistema (Linux)
+
+```bash
+sudo apt update
+sudo apt install -y python3-tk python3-dev portaudio19-dev
+```
+
+> **Nota:** `python3-tk` es necesario para el soporte de GUI en Linux. `portaudio19-dev` es requerido para compilar PyAudio.
+
+### Instalación del proyecto
+
 ```bash
 # 1. Clonar
 git clone https://github.com/tu-usuario/GestureOS.git
 cd GestureOS
 
-# 2. Dependencias
+# 2. Crear entorno virtual (recomendado)
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Dependencias de Python
 pip install -r requirements.txt
 
-# 3. Ejecutar
+# 4. Ejecutar
 python main.py
 ```
 

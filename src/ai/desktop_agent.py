@@ -3,13 +3,20 @@ import base64
 import threading
 import queue
 import time
+import logging
 from typing import Optional, List, Dict, Callable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
 import ollama
 
-from src.core.config import OLLAMA_MODEL, OLLAMA_VISION_MODEL, OLLAMA_BASE_URL
+from src.core.config import (
+    OLLAMA_MODEL, OLLAMA_VISION_MODEL, OLLAMA_BASE_URL,
+    OLLAMA_TEMPERATURE, OLLAMA_NUM_PREDICT, OLLAMA_ASK_TIMEOUT,
+    MAX_CONVERSATION_LENGTH,
+)
+
+logger = logging.getLogger("gestureos.desktop_agent")
 
 
 class AgentState(Enum):
@@ -48,7 +55,7 @@ class DesktopAgent:
         self._is_active = False
 
         self._conversation: List[Message] = []
-        self._max_conversation_length = 50
+        self._max_conversation_length = MAX_CONVERSATION_LENGTH
 
         self._request_queue: queue.Queue = queue.Queue()
         self._response_queue: queue.Queue = queue.Queue()
@@ -66,30 +73,30 @@ class DesktopAgent:
 Capacidades disponibles:
 1. Control de mouse: click, right_click, double_click, drag
 2. Control de teclado: write, press_key, hotkey
-3. Gestión de ventanas: minimize, maximize, close, switch_window
+3. Gestion de ventanas: minimize, maximize, close, switch_window
 4. Sistema: screenshot, open_app, volume_up, volume_down
-5. Búsqueda: search_web, search_files
+5. Busqueda: search_web, search_files
 
-Cuando el usuario solicite una acción, responde en JSON con:
+Cuando el usuario solicite una accion, responde en JSON con:
 {
     "action": "tipo_de_accion",
     "params": {"param1": "valor1"},
-    "explanation": "explicación breve"
+    "explanation": "explicacion breve"
 }
 
 Si no necesitas ejecutar acciones, responde:
 {
     "action": "respond",
     "params": {"text": "tu respuesta"},
-    "explanation": "explicación"
+    "explanation": "explicacion"
 }
 
 Ejemplos de comandos:
 - "Abre el navegador" -> {"action": "open_app", "params": {"app": "browser"}, "explanation": "Abriendo navegador"}
 - "Cierra esta ventana" -> {"action": "close", "params": {}, "explanation": "Cerrando ventana"}
-- "¿Qué hay en mi pantalla?" -> {"action": "analyze_screen", "params": {}, "explanation": "Analizando pantalla"}
+- "Que hay en mi pantalla?" -> {"action": "analyze_screen", "params": {}, "explanation": "Analizando pantalla"}
 
-Responde siempre en español de forma clara y concisa."""
+Responde siempre en espanol de forma clara y concisa."""
 
     def start(self):
         if self._is_active:
@@ -127,6 +134,7 @@ Responde siempre en español de forma clara y concisa."""
                 self._response_queue.put(response)
 
             except Exception as e:
+                logger.error(f"Request processing error: {e}")
                 self._set_state(AgentState.ERROR)
                 error_response = {
                     "action": "error",
@@ -137,7 +145,8 @@ Responde siempre en español de forma clara y concisa."""
 
     def _process_request(self, request: Dict) -> Dict:
         user_message = request.get("message", "")
-        images = request.get("images", None)
+        images = request.get("images")
+        callback = request.get("callback")
 
         self._conversation.append(Message(
             role="user",
@@ -149,24 +158,15 @@ Responde siempre en español de forma clara y concisa."""
             self._conversation = [self._conversation[0]] + self._conversation[-self._max_conversation_length:]
 
         try:
-            if images:
-                response = ollama.chat(
-                    model=self.vision_model,
-                    messages=self._convert_conversation(),
-                    options={
-                        "temperature": 0.3,
-                        "num_predict": 500
-                    }
-                )
-            else:
-                response = ollama.chat(
-                    model=self.model,
-                    messages=self._convert_conversation(),
-                    options={
-                        "temperature": 0.3,
-                        "num_predict": 500
-                    }
-                )
+            model = self.vision_model if images else self.model
+            response = ollama.chat(
+                model=model,
+                messages=self._convert_conversation(),
+                options={
+                    "temperature": OLLAMA_TEMPERATURE,
+                    "num_predict": OLLAMA_VISION_NUM_PREDICT if images else OLLAMA_NUM_PREDICT
+                }
+            )
 
             assistant_message = response['message']['content']
             self._conversation.append(Message(
@@ -187,10 +187,17 @@ Responde siempre en español de forma clara y concisa."""
                 if self._on_action_callback:
                     self._on_action_callback(action)
 
+            if callback:
+                try:
+                    callback(parsed)
+                except Exception as e:
+                    logger.error(f"Async callback failed: {e}")
+
             self._set_state(AgentState.IDLE)
             return parsed
 
         except Exception as e:
+            logger.error(f"Ollama request failed: {e}")
             self._set_state(AgentState.ERROR)
             return {
                 "action": "error",
@@ -248,16 +255,16 @@ Responde siempre en español de forma clara y concisa."""
         self._request_queue.put(request)
 
         try:
-            response = self._response_queue.get(timeout=30)
+            response = self._response_queue.get(timeout=OLLAMA_ASK_TIMEOUT)
             return response
         except queue.Empty:
             return {
                 "action": "error",
                 "params": {"message": "Timeout"},
-                "explanation": "La solicitud tardó demasiado"
+                "explanation": "La solicitud tardo demasiado"
             }
 
-    def ask_async(self, question: str, callback: Callable[[Dict], None] = None):
+    def ask_async(self, question: str, callback: Optional[Callable[[Dict], None]] = None):
         request = {
             "message": question,
             "callback": callback
@@ -279,7 +286,10 @@ Responde siempre en español de forma clara y concisa."""
     def _set_state(self, state: AgentState):
         self.state = state
         if self._on_state_change_callback:
-            self._on_state_change_callback(state)
+            try:
+                self._on_state_change_callback(state)
+            except Exception as e:
+                logger.error(f"Agent state change callback failed: {e}")
 
     def on_state_change(self, callback: Callable[[AgentState], None]):
         self._on_state_change_callback = callback

@@ -1,4 +1,5 @@
 import time
+import logging
 from typing import Optional, List, Dict, Callable
 from dataclasses import dataclass
 
@@ -7,6 +8,8 @@ import psutil
 from pathlib import Path
 
 from src.core.config import SCREENSHOT_DIR
+
+logger = logging.getLogger("gestureos.system_control")
 
 
 @dataclass
@@ -69,10 +72,8 @@ class SystemController:
             filename = f"screenshot_{timestamp}.png"
 
         filepath = SCREENSHOT_DIR / filename
-
         screenshot = pyautogui.screenshot()
         screenshot.save(filepath)
-
         return filepath
 
     def minimize_window(self):
@@ -114,7 +115,6 @@ class SystemController:
                 return None
 
             title = win32gui.GetWindowText(hwnd)
-
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             process = psutil.Process(pid)
             process_name = process.name()
@@ -125,13 +125,15 @@ class SystemController:
                 process_name=process_name,
                 is_active=True
             )
-
-        except Exception:
+        except ImportError:
+            logger.debug("win32gui not available (Linux)")
+            return None
+        except Exception as e:
+            logger.error(f"get_active_window failed: {e}")
             return None
 
     def get_open_windows(self) -> List[WindowInfo]:
         windows = []
-
         try:
             import win32gui
             import win32process
@@ -144,7 +146,6 @@ class SystemController:
                             _, pid = win32process.GetWindowThreadProcessId(hwnd)
                             process = psutil.Process(pid)
                             process_name = process.name()
-
                             windows.append(WindowInfo(
                                 hwnd=hwnd,
                                 title=title,
@@ -156,9 +157,10 @@ class SystemController:
                 return True
 
             win32gui.EnumWindows(callback, None)
-
-        except Exception:
-            pass
+        except ImportError:
+            logger.debug("win32gui not available (Linux)")
+        except Exception as e:
+            logger.error(f"get_open_windows failed: {e}")
 
         return windows
 
@@ -170,7 +172,8 @@ class SystemController:
             time.sleep(0.3)
             pyautogui.press("enter", _pause=False)
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"open_application '{app_name}' failed: {e}")
             return False
 
     def register_hotkey(self, key_combo: str, handler: Callable):

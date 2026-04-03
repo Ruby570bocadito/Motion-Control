@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QStatusBar,
     QMenuBar, QMenu, QCheckBox, QGroupBox, QSlider,
-    QFrame, QSplitter, QListWidget, QListWidgetItem
+    QFrame, QSplitter, QListWidget, QListWidgetItem,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
 from PyQt6.QtGui import QAction, QIcon, QFont
@@ -20,7 +21,7 @@ class MainWindow(QMainWindow):
     toggle_keyboard = pyqtSignal()
     toggle_voice = pyqtSignal()
     toggle_ai = pyqtSignal()
-    speed_changed = pyqtSignal(int)   # 1–5
+    speed_changed = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
@@ -91,24 +92,24 @@ class MainWindow(QMainWindow):
         mouse_layout.addWidget(self.mouse_enabled)
 
         help_text = QLabel(
-            "MANO DERECHA (cursor)\n"
+            "MANO IZQUIERDA (cursor)\n"
             "  🖐️ Palma abierta  → Mover cursor\n"
-            "  ✊ Puño          → Click izquierdo\n"
-            "  ✌️ Peace (V)     → Click derecho\n"
             "  🤏 Pinch          → Arrastrar (drag)\n"
-            "  ☝️ Un dedo arriba → Modo scroll\n\n"
-            "MANO IZQUIERDA (atajo)\n"
-            "  👍 Thumb Up       → Click izquierdo\n"
-            "  👎 Thumb Down     → Click derecho\n\n"
+            "  ✌️ Dos dedos      → Scroll natural\n"
+            "  🖐️ Quieta 1.5s    → Dwell click\n\n"
+            "MANO DERECHA (acciones)\n"
+            "  ✊ Puño           → Click izquierdo\n"
+            "  👎 Thumb Down    → Click derecho\n"
+            "  🤌 Index wink    → Click suave\n"
+            "  ☝️ Un dedo       → Scroll clasico\n\n"
             "AMBAS MANOS\n"
-            "  👍👍 2x Thumbs Up   → Teclado ON/OFF"
+            "  👍👍 Thumbs Up    → Teclado ON/OFF"
         )
         help_text.setStyleSheet("color: #444; font-size: 10px; padding: 4px;")
         help_text.setWordWrap(True)
         mouse_layout.addWidget(help_text)
 
-        # ─ Sensitivity slider ─
-        sens_label = QLabel("Velocidad del ratón:")
+        sens_label = QLabel("Velocidad del raton:")
         sens_label.setStyleSheet("font-size: 10px; color: #555; margin-top: 4px;")
         mouse_layout.addWidget(sens_label)
 
@@ -120,14 +121,14 @@ class MainWindow(QMainWindow):
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
         self.speed_slider.setMinimum(1)
         self.speed_slider.setMaximum(5)
-        self.speed_slider.setValue(3)   # default mid
+        self.speed_slider.setValue(3)
         self.speed_slider.setTickInterval(1)
         self.speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.speed_slider.setFixedHeight(24)
         self.speed_slider.valueChanged.connect(lambda v: self.speed_changed.emit(v))
         slider_row.addWidget(self.speed_slider)
 
-        fast_lbl = QLabel("Rápido")
+        fast_lbl = QLabel("Rapido")
         fast_lbl.setStyleSheet("font-size: 9px; color: #888;")
         slider_row.addWidget(fast_lbl)
         mouse_layout.addLayout(slider_row)
@@ -143,7 +144,7 @@ class MainWindow(QMainWindow):
         help_text2 = QLabel(
             "👍👍 2x Thumbs Up = Activar/Desactivar\n"
             "Pinch / clic en tecla = Escribir\n"
-            "Checkbox aquí = Control manual"
+            "Checkbox aqui = Control manual"
         )
         help_text2.setStyleSheet("color: gray; font-size: 10px;")
         keyboard_layout.addWidget(help_text2)
@@ -212,14 +213,17 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self._on_stop_clicked)
         layout.addWidget(self.stop_button)
 
-        self.settings_button = QPushButton("Configuración")
+        self.settings_button = QPushButton("Configuracion")
         self.settings_button.setMinimumHeight(50)
+        self.settings_button.clicked.connect(self._on_settings_clicked)
         layout.addWidget(self.settings_button)
 
         return widget
 
     def _setup_menu(self):
         menubar = self.menuBar()
+        if not menubar:
+            return
 
         file_menu = menubar.addMenu("Archivo")
 
@@ -237,6 +241,7 @@ class MainWindow(QMainWindow):
         help_menu = menubar.addMenu("Ayuda")
 
         about_action = QAction("Acerca de", self)
+        about_action.triggered.connect(self._on_about_clicked)
         help_menu.addAction(about_action)
 
     def _setup_status_bar(self):
@@ -248,7 +253,7 @@ class MainWindow(QMainWindow):
         self._is_running = True
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.status_bar.showMessage("Sistema ejecutándose...")
+        self.status_bar.showMessage("Sistema ejecutandose...")
         self.start_system.emit()
 
     def _on_stop_clicked(self):
@@ -257,6 +262,26 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         self.status_bar.showMessage("Sistema detenido")
         self.stop_system.emit()
+
+    def _on_settings_clicked(self):
+        QMessageBox.information(
+            self, "Configuracion",
+            "Ajusta los parametros en src/core/config.py\n\n"
+            "MOUSE_SMOOTHING: Suavizado del cursor\n"
+            "MOUSE_SPEED_MULTIPLIER: Velocidad del cursor\n"
+            "MOUSE_DEADZONE: Zona muerta\n"
+            "DWELL_THRESHOLD: Tiempo de dwell click\n"
+            "VOICE_COMMAND_COOLDOWN: Cooldown de voz"
+        )
+
+    def _on_about_clicked(self):
+        QMessageBox.about(
+            self, "Acerca de GestureOS",
+            "<h2>GestureOS</h2>"
+            "<p>Sistema de control por gestos con IA</p>"
+            "<p>Controla tu ordenador con gestos de mano, voz e inteligencia artificial.</p>"
+            "<p><b>Tecnologias:</b> PyQt6, MediaPipe, Ollama</p>"
+        )
 
     def log_message(self, message: str):
         item = QListWidgetItem(f"[{self._get_timestamp()}] {message}")
@@ -287,12 +312,10 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot()
     def _invoke_keyboard_on(self):
-        """Thread-safe slot: update UI when keyboard is activated via gesture."""
         self.keyboard_enabled.setChecked(True)
         self.log_message("Teclado activado (👍👍)")
 
     @pyqtSlot()
     def _invoke_keyboard_off(self):
-        """Thread-safe slot: update UI when keyboard is deactivated via gesture."""
         self.keyboard_enabled.setChecked(False)
         self.log_message("Teclado cerrado (👍👍)")

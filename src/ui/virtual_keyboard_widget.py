@@ -1,3 +1,4 @@
+import logging
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QGridLayout, QLabel, QSizePolicy
@@ -6,6 +7,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QSize
 from PyQt6.QtGui import QFont, QColor
 
 import pyautogui
+
+logger = logging.getLogger("gestureos.virtual_keyboard_widget")
 
 
 STYLE_KEY = """
@@ -299,7 +302,7 @@ class VirtualKeyboardWidget(QWidget):
             else:
                 pyautogui.press(char)
         except Exception as e:
-            print(f"[Keyboard] send error: {e}")
+            logger.error(f"Keyboard send error: {e}")
         self.key_pressed.emit(char)
 
     def _toggle_shift(self):
