@@ -33,8 +33,6 @@
 - [Quick Start](#-quick-start)
 - [Usage Examples](#-usage-examples)
 - [Configuration](#-configuration)
-- [Roadmap](#-roadmap)
-- [Contributing](#-contributing)
 - [License](#-license)
 
 ---
@@ -199,7 +197,7 @@ git clone https://github.com/Ruby570bocadito/Horizon-Intel.git
 cd Horizon-Intel
 
 # Create virtual environment
-python -m venv venv
+python -m venv vent
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
@@ -207,7 +205,7 @@ pip install -r requirements.txt
 
 # Initialize configuration
 cp config.example.yml config.yml
-nano config.yml  # Edit your API keys and settings
+nano config.yml # Edit your API keys and settings
 
 # Initialize database (optional)
 python manage.py db init
@@ -289,7 +287,7 @@ python horizon.py --domain example.com --report pdf --output ./reports/
 
 ---
 
-## ⚙️ Configuration
+## ⚛️ Configuration
 
 Horizon-Intel uses a YAML configuration file for all settings:
 
@@ -311,35 +309,10 @@ database:
   host: localhost
   port: 5432
   name: horizon_intel
-
-reports:
+reports:
   format: [pdf, html, json]
   template: "professional"
 ```
-
----
-
-## 🗺 Roadmap
-
-- [x] Core OSINT collectors (v1.0)
-- [x] Correlation engine (v1.5)
-- [x] Web dashboard (v2.0)
-- [ ] Machine learning integration (v2.5)
-- [ ] Real-time alerting system (v2.5)
-- [ ] Mobile companion app (v3.0)
-- [ ] Plugin marketplace (v3.0)
-
----
-
-## 🤝 Contributing
-
-Contributions are what make the open source community amazing! Any contributions you make are **greatly appreciated**.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ---
 
@@ -354,11 +327,12 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
   <br>
   <a href="https://github.com/Ruby570bocadito/Horizon-Intel">GitHub</a>
   ·
+
   <a href="https://github.com/Ruby570bocadito/Horizon-Intel/issues">Report Bug</a>
   ·
   <a href="https://github.com/Ruby570bocadito/Horizon-Intel/issues">Request Feature</a>
 </p>
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:001529,100:0d47a1&height=120&section=footer&text=—%20Open%20Source%20Intelligence%20for%20the%20Modern%20Era%20—&fontSize=18&fontColor=fff&animation=fadeIn" width="100%" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:001529,100:0d47a1&height=120&section=footer&text=—%20Open%20Source%20Intelligence%20for%20the%20Modern%20Era%20—&fontSize=18&fontColor=fff&animation=fadeIn" weidth="100%" />
 </p>
